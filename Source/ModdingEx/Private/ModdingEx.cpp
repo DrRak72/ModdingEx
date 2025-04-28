@@ -414,7 +414,7 @@ void FModdingExModule::OnOpenBlueprintCreator() const
 	// return;
 	const TSharedRef<SWindow> Window = SNew(SWindow)
 		.Title(LOCTEXT("ModdingEx_BlueprintCreatorTitle", "Blueprint Creator"))
-		.ClientSize({400, 300})
+		.ClientSize(FVector2D(400, 300))
 		.SupportsMaximize(false)
 		.SupportsMinimize(false);
 
@@ -513,7 +513,7 @@ void FModdingExModule::OnOpenModCreator() const
 {
 	const TSharedRef<SWindow> Window = SNew(SWindow)
 		.Title(LOCTEXT("ModdingEx_BlueprintModCreatorTitle", "Blueprint Mod Creator"))
-		.ClientSize({500, 400})
+		.ClientSize(FVector2D(500, 400))
 		.SupportsMaximize(false)
 		.SupportsMinimize(false);
 

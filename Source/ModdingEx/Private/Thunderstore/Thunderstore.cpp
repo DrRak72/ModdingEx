@@ -41,7 +41,7 @@ void FThunderstore::OnOpenDownloadDependency() const
 {
 	const TSharedRef<SWindow> Window = SNew(SWindow)
 		.Title(ThunderstoreLoctext::DownloadDependency)
-		.ClientSize({400, 150})
+		.ClientSize(FVector2D(400, 150))
 		.SupportsMaximize(false)
 		.SupportsMinimize(false);
 
