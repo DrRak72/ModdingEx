@@ -50,7 +50,8 @@ public class ModdingEx : ModuleRules
 				"Slate",
 				"SlateCore",
 				"ToolWidgets", "Json", "Kismet", "BlueprintGraph", "FileUtilities", "PropertyEditor", "HTTP",
-				"JsonUtilities", "ContentBrowserData"
+				"JsonUtilities", "ContentBrowserData",
+				"DeveloperToolSettings"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

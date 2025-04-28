@@ -20,7 +20,7 @@ private:
 	/** Zips the staging mod directory */
 	static bool ZipModStaging(const FString& ModName, const FString& ModManager);
 
-	static bool ZipModInternal(const FString& ModName, const TArray<FString>& FilesToZip, const FString& ModManager, const FString& CommonDirectory);
+	static bool ZipModInternal(const FString& ModName);
 
 	static void CreateModManifest(FString& OutModManifest, const FString& ModName, const FString& WebsiteUrl,
 	                              const FString& Dependencies, const FString& ModDesc, const FString& ModVersion);
@@ -40,24 +40,24 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Mod Building")
 	static bool BuildMod(const FString& ModName, bool bIsSameContentError = true);
 
-	UFUNCTION(BlueprintCallable, Category = "Mod Building")
-	static bool PrepareModForRelease(const FString& ModName, const FString& WebsiteUrl, const FString& Dependencies);
+	// UFUNCTION(BlueprintCallable, Category = "Mod Building")
+	// static bool PrepareModForRelease(const FString& ModName, const FString& WebsiteUrl, const FString& Dependencies);
 
 	UFUNCTION(BlueprintCallable, Category = "Mod Building")
 	static bool ZipMod(const FString& ModName);
 
-	UFUNCTION(BlueprintCallable, Category = "Mod Building")
-	static bool UninstallMod(const FString& ModName);
+	// UFUNCTION(BlueprintCallable, Category = "Mod Building")
+	// static bool UninstallMod(const FString& ModName);
 
 	UFUNCTION(BlueprintCallable, Category = "Mod Building")
 	static bool GetOutputFolder(bool bIsLogicMod, FString& OutFolder);
 
-	UFUNCTION(BlueprintCallable, Category = "Mod Building")
-	static bool Pack(const FString& FilesPath, const FString& OutputPath);
+	// UFUNCTION(BlueprintCallable, Category = "Mod Building")
+	// static bool Pack(const FString& FilesPath, const FString& OutputPath);
 	
-	UFUNCTION(BlueprintCallable, Category = "Mod Building")
-	static bool Cook();
+	// UFUNCTION(BlueprintCallable, Category = "Mod Building")
+	// static bool Cook();
 
-	UFUNCTION(BlueprintCallable, Category = "Mod Building")
-	static FString CreateFilesTxt(const FString& RootDir, const FString& TrackingDir);
+	// UFUNCTION(BlueprintCallable, Category = "Mod Building")
+	// static FString CreateFilesTxt(const FString& RootDir, const FString& TrackingDir);
 };

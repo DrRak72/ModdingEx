@@ -184,7 +184,7 @@ void FModdingExModule::RegisterMenus()
 						}
 
 						MenuBuilder.EndSection();
-
+						/*
 						MenuBuilder.BeginSection("ModdingEx_UninstallModsEntry", LOCTEXT("ModdingEx_UninstallMod", "Uninstall Mod"));
 
 						for (FString Mod : Mods)
@@ -199,7 +199,7 @@ void FModdingExModule::RegisterMenus()
 								}))
 							);
 						}
-
+						*/
 						MenuBuilder.EndSection();
 
 						InNewToolMenu->AddMenuEntry(
@@ -751,7 +751,7 @@ void FModdingExModule::OnOpenPrepareModForRelease(const FString& Mod) const
 		.Padding(7)
 		[
 			DependenciesEdit
-		]
+		] /*
 		+ SVerticalBox::Slot()
         .FillHeight(1)
         .Padding(7)
@@ -768,7 +768,7 @@ void FModdingExModule::OnOpenPrepareModForRelease(const FString& Mod) const
             	Window->RequestDestroyWindow();
 				return FReply::Handled();
 			})
-        ]
+        ] */
     );
 
     FSlateApplication::Get().AddWindow(Window);
