@@ -778,6 +778,7 @@ FReply FModdingExModule::TryStartGame() const
 {
 	const auto Settings = GetDefault<UModdingExSettings>();
 	FString GamePath = Settings->GameExePath.FilePath;
+	FString Params = TEXT("");
 
 	if (GamePath.IsEmpty())
 	{
@@ -809,8 +810,8 @@ FReply FModdingExModule::TryStartGame() const
 			}
 		}
 	}
-
-	FPlatformProcess::CreateProc(*GamePath, nullptr, true, false, false, nullptr, 0, nullptr, nullptr);
+	
+	FPlatformProcess::CreateProc(*GamePath, *Params, true, false, false, nullptr, 0, nullptr, nullptr);
 
 	return FReply::Handled();
 }
