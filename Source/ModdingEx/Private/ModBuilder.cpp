@@ -83,6 +83,8 @@ bool UModBuilder::BuildMod(const FString& ModName, bool bIsSameContentError)
 
 	FString FinalDestinationDir; 
 
+	SetLiveCoding(false);
+
 	// --- 1. Common Setup ---
 	if (Settings->bSaveAllBeforeBuilding)
 	{
@@ -145,6 +147,7 @@ bool UModBuilder::BuildMod(const FString& ModName, bool bIsSameContentError)
 	UatArgs += FString::Printf(TEXT(" -stagingdirectory=\"%s\""), *TempStagingDir);
 	UatArgs += TEXT(" -package"); 
 	UatArgs += TEXT(" -pak");
+	UatArgs += TEXT(" -SkipCookingEditorContent");
 
 	if (bUseIoStore) {
 		UatArgs += TEXT(" -iostore");
@@ -160,7 +163,6 @@ bool UModBuilder::BuildMod(const FString& ModName, bool bIsSameContentError)
 		UE_LOG(LogModdingEx, Warning, TEXT("Mod content directory not found, cannot specify -CookDir: %s"), *ModContentDir);
 	}
 
-
 	UatArgs += TEXT(" -NoP4");
 	UatArgs += TEXT(" -build");
 	UatArgs += TEXT(" -utf8output");
@@ -168,13 +170,12 @@ bool UModBuilder::BuildMod(const FString& ModName, bool bIsSameContentError)
 	UatArgs += TEXT(" -nodebuginfo");
 
 	// --- 4. Execute UAT ---
-	SetLiveCoding(false);
+	
 	if (!ExecProcessAndLog(UatPath, UatArgs, FText::FromString("UAT BuildCookRun")))
 	{
 		FileManager.DeleteDirectory(*TempStagingDir, false, true);
 		return false;
 	}
-	SetLiveCoding(true);
 
 	// --- 5. Copy Output from Staging Directory ---
 	SlowTask.EnterProgressFrame(1, FText::FromString("Copying build output"));
@@ -201,78 +202,137 @@ bool UModBuilder::BuildMod(const FString& ModName, bool bIsSameContentError)
 
 	// --- Find and Rename/Copy Logic ---
 	bool bAllCopiedSuccessfully = true;
+	bool bModPakCopied = false; // Track if the main pak was found and copied
+    bool bModUtocCopied = false; // Track if mod-specific utoc was found and copied
+    bool bModUcasCopied = false; // Track if mod-specific ucas was found and copied
 
-	// Handle PAK file(s)
+	// Handle PAK file(s) - Assuming the first pak found is the mod's main pak
 	TArray<FString> FoundPakFiles;
-	TArray<FString> FoundUtocFiles;
-	TArray<FString> FoundUcasFiles;
-
 	FileManager.FindFiles(FoundPakFiles, *StagedPaksDir, TEXT("*.pak"));
 	if (!FoundPakFiles.IsEmpty())
 	{
 		FString SourcePakPath = StagedPaksDir / FoundPakFiles[0];
 		FString DestPakPath = FinalDestinationDir / (ModName + TEXT(".pak")); // Rename using ModName
 		UE_LOG(LogModdingEx, Log, TEXT("Copying and renaming PAK: '%s' to '%s'"), *SourcePakPath, *DestPakPath);
-		if (FileManager.Copy(*DestPakPath, *SourcePakPath, true, true, true) != COPY_OK)
+		if (FileManager.Copy(*DestPakPath, *SourcePakPath, true, true, true) == COPY_OK)
+		{
+			bModPakCopied = true;
+		}
+		else
 		{
 			UE_LOG(LogModdingEx, Error, TEXT("Failed to copy PAK file: %s -> %s"), *SourcePakPath, *DestPakPath);
 			bAllCopiedSuccessfully = false;
 		}
 		if (FoundPakFiles.Num() > 1) {
-			UE_LOG(LogModdingEx, Warning, TEXT("Found %d PAK files in staging directory, but only renamed and copied the first one ('%s'). Additional PAKs ignored:"), FoundPakFiles.Num(), *FoundPakFiles[0]);
-			for (int32 i = 1; i < FoundPakFiles.Num(); ++i) {
-				UE_LOG(LogModdingEx, Warning, TEXT("  - Ignored: %s"), *FoundPakFiles[i]);
-			}
-		}
+            UE_LOG(LogModdingEx, Warning, TEXT("Found %d PAK files in staging directory, but only renamed and copied the first one ('%s'). Additional PAKs ignored:"), FoundPakFiles.Num(), *FoundPakFiles[0]);
+            for (int32 i = 1; i < FoundPakFiles.Num(); ++i) {
+                UE_LOG(LogModdingEx, Warning, TEXT("  - Ignored: %s"), *FoundPakFiles[i]);
+            }
+        }
 	} else {
 		UE_LOG(LogModdingEx, Error, TEXT("No .pak files found in staging directory: %s"), *StagedPaksDir);
-		bAllCopiedSuccessfully = false;
+		bAllCopiedSuccessfully = false; // Cannot succeed without the main pak
 	}
 
 
-	// Handle IO Store files if enabled
+	// Handle IO Store files if enabled and Pak copy was successful
 	if (bUseIoStore && bAllCopiedSuccessfully)
 	{
-		FileManager.FindFiles(FoundUtocFiles, *StagedPaksDir, TEXT("*.utoc"));
-		if (!FoundUtocFiles.IsEmpty())
-		{
-			FString SourceUtocPath = StagedPaksDir / FoundUtocFiles[0];
-			FString DestUtocPath = FinalDestinationDir / (ModName + TEXT(".utoc")); // Rename using ModName
-			UE_LOG(LogModdingEx, Log, TEXT("Copying and renaming UTOC: '%s' to '%s'"), *SourceUtocPath, *DestUtocPath);
-			if (FileManager.Copy(*DestUtocPath, *SourceUtocPath, true, true, true) != COPY_OK)
-			{
-				UE_LOG(LogModdingEx, Error, TEXT("Failed to copy UTOC file: %s -> %s"), *SourceUtocPath, *DestUtocPath);
-				bAllCopiedSuccessfully = false;
-			}
-            if (FoundUtocFiles.Num() > 1) {
-                 UE_LOG(LogModdingEx, Warning, TEXT("Found %d UTOC files, only copied/renamed the first ('%s')."), FoundUtocFiles.Num(), *FoundUtocFiles[0]);
-            }
-		} else {
-			UE_LOG(LogModdingEx, Error, TEXT("IO Store enabled, but no .utoc file found in staging directory: %s"), *StagedPaksDir);
-			bAllCopiedSuccessfully = false;
-		}
+		TArray<FString> FoundUtocFiles;
+		TArray<FString> FoundUcasFiles;
+        FString ProjectName = FApp::GetProjectName(); // Get project name for filtering
 
-		// Handle UCAS file (only if UTOC was okay)
-		if (bAllCopiedSuccessfully) {
-			FileManager.FindFiles(FoundUcasFiles, *StagedPaksDir, TEXT("*.ucas"));
-			if (!FoundUcasFiles.IsEmpty())
+		// --- Filtered UTOC Handling ---
+		FileManager.FindFiles(FoundUtocFiles, *StagedPaksDir, TEXT("*.utoc"));
+		bool bFoundModUtoc = false;
+		for(const FString& FoundFile : FoundUtocFiles)
+		{
+            // Ignore global or project-specific base files
+            if (FoundFile.Equals(TEXT("global.utoc"), ESearchCase::IgnoreCase) ||
+                FoundFile.Equals(ProjectName + TEXT(".utoc"), ESearchCase::IgnoreCase))
+            {
+                UE_LOG(LogModdingEx, Log, TEXT("Ignoring global/project UTOC file: %s"), *FoundFile);
+                continue;
+            }
+
+            // Assume the first non-ignored file is the mod's UTOC
+			FString SourceUtocPath = StagedPaksDir / FoundFile;
+			FString DestUtocPath = FinalDestinationDir / (ModName + TEXT(".utoc")); // Rename using ModName
+			UE_LOG(LogModdingEx, Log, TEXT("Copying and renaming mod-specific UTOC: '%s' to '%s'"), *SourceUtocPath, *DestUtocPath);
+			if (FileManager.Copy(*DestUtocPath, *SourceUtocPath, true, true, true) == COPY_OK)
 			{
-				FString SourceUcasPath = StagedPaksDir / FoundUcasFiles[0];
-				FString DestUcasPath = FinalDestinationDir / (ModName + TEXT(".ucas")); // Rename using ModName
-				UE_LOG(LogModdingEx, Log, TEXT("Copying and renaming UCAS: '%s' to '%s'"), *SourceUcasPath, *DestUcasPath);
-				if (FileManager.Copy(*DestUcasPath, *SourceUcasPath, true, true, true) != COPY_OK)
-				{
-					UE_LOG(LogModdingEx, Error, TEXT("Failed to copy UCAS file: %s -> %s"), *SourceUcasPath, *DestUcasPath);
-					bAllCopiedSuccessfully = false;
-				}
-                if (FoundUcasFiles.Num() > 1) {
-                    UE_LOG(LogModdingEx, Warning, TEXT("Found %d UCAS files, only copied/renamed the first ('%s')."), FoundUcasFiles.Num(), *FoundUcasFiles[0]);
-                }
-			} else {
-				UE_LOG(LogModdingEx, Error, TEXT("IO Store enabled, but no .ucas file found in staging directory: %s"), *StagedPaksDir);
+                bModUtocCopied = true;
+				bFoundModUtoc = true;
+                break; // Stop after copying the first mod-specific file
+			}
+			else
+			{
+				UE_LOG(LogModdingEx, Error, TEXT("Failed to copy mod-specific UTOC file: %s -> %s"), *SourceUtocPath, *DestUtocPath);
 				bAllCopiedSuccessfully = false;
+                break; // Stop if copy fails
 			}
 		}
+        if (!bFoundModUtoc && !FoundUtocFiles.IsEmpty()) {
+             UE_LOG(LogModdingEx, Warning, TEXT("Found UTOC file(s) but none were identified as mod-specific (or copy failed). Ignored: %s"), *FString::Join(FoundUtocFiles, TEXT(", ")));
+             // Decide if this is an error - for now, let it proceed but it might indicate build issues
+             // bAllCopiedSuccessfully = false;
+        }
+        else if (FoundUtocFiles.IsEmpty())
+        {
+            UE_LOG(LogModdingEx, Error, TEXT("IO Store enabled, but no .utoc file found in staging directory: %s"), *StagedPaksDir);
+			bAllCopiedSuccessfully = false;
+        }
+
+		// --- Filtered UCAS Handling (only if UTOC was okay) ---
+		if (bAllCopiedSuccessfully && bModUtocCopied) // Proceed only if UTOC was successfully handled
+        {
+			FileManager.FindFiles(FoundUcasFiles, *StagedPaksDir, TEXT("*.ucas"));
+            bool bFoundModUcas = false;
+            for(const FString& FoundFile : FoundUcasFiles)
+            {
+                 // Ignore global or project-specific base files
+                if (FoundFile.Equals(TEXT("global.ucas"), ESearchCase::IgnoreCase) ||
+                    FoundFile.Equals(ProjectName + TEXT(".ucas"), ESearchCase::IgnoreCase))
+                {
+                    UE_LOG(LogModdingEx, Log, TEXT("Ignoring global/project UCAS file: %s"), *FoundFile);
+                    continue;
+                }
+
+                // Assume the first non-ignored file is the mod's UCAS
+                FString SourceUcasPath = StagedPaksDir / FoundFile;
+				FString DestUcasPath = FinalDestinationDir / (ModName + TEXT(".ucas")); // Rename using ModName
+				UE_LOG(LogModdingEx, Log, TEXT("Copying and renaming mod-specific UCAS: '%s' to '%s'"), *SourceUcasPath, *DestUcasPath);
+				if (FileManager.Copy(*DestUcasPath, *SourceUcasPath, true, true, true) == COPY_OK)
+				{
+                    bModUcasCopied = true;
+					bFoundModUcas = true;
+                    break; // Stop after copying the first mod-specific file
+				}
+				else
+				{
+					UE_LOG(LogModdingEx, Error, TEXT("Failed to copy mod-specific UCAS file: %s -> %s"), *SourceUcasPath, *DestUcasPath);
+					bAllCopiedSuccessfully = false;
+                    break; // Stop if copy fails
+				}
+            }
+
+            if (!bFoundModUcas && !FoundUcasFiles.IsEmpty()) {
+                 UE_LOG(LogModdingEx, Warning, TEXT("Found UCAS file(s) but none were identified as mod-specific (or copy failed). Ignored: %s"), *FString::Join(FoundUcasFiles, TEXT(", ")));
+                 // Decide if this is an error
+                 // bAllCopiedSuccessfully = false;
+            }
+            else if (FoundUcasFiles.IsEmpty())
+            {
+                 UE_LOG(LogModdingEx, Error, TEXT("IO Store enabled, but no .ucas file found in staging directory: %s"), *StagedPaksDir);
+			    bAllCopiedSuccessfully = false;
+            }
+		} else if (bUseIoStore && !bModUtocCopied) {
+            UE_LOG(LogModdingEx, Warning, TEXT("Skipping UCAS file copy because mod-specific UTOC was not found or failed to copy."));
+            if (bAllCopiedSuccessfully) // If the only reason we didn't find UCAS is UTOC failure, mark as overall failure
+            {
+                 bAllCopiedSuccessfully = false;
+            }
+        }
 	} else if (bUseIoStore && !bAllCopiedSuccessfully) {
         UE_LOG(LogModdingEx, Warning, TEXT("Skipping IOStore file copy due to earlier pak copy failure."));
     }
@@ -310,6 +370,7 @@ bool UModBuilder::BuildMod(const FString& ModName, bool bIsSameContentError)
 	GEditor->PlayEditorSound(TEXT("/Engine/EditorSounds/Notifications/CompileSuccess_Cue.CompileSuccess_Cue"));
 	}
 
+	SetLiveCoding(true);
 
 	return true;
 }
